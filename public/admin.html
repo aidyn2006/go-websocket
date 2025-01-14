@@ -59,14 +59,18 @@
         }
 
         .user-message {
-            background-color: #d1e7ff;
+            background-color: #ccd5df; /* Gray for user messages */
             text-align: left;
+            align-self: flex-start;
+            margin-bottom: 8px;
         }
 
         .admin-message {
-            background-color: #f1f1f1;
+            background-color: #d1e7ff; /* Blue for admin messages */
+            color: black;
             text-align: right;
-            color: #555;
+            align-self: flex-end;
+            margin-bottom: 8px;
         }
 
         #messageInput {
@@ -102,6 +106,7 @@
             cursor: pointer;
             color: #007bff;
         }
+
         .user-link:hover {
             text-decoration: underline;
         }
@@ -125,64 +130,79 @@
 <script>
     const username = "admin"; // Hardcoded for admin
     const ws = new WebSocket("ws://localhost:8080/ws");
-    let selectedUser = null;  // Keep track of the selected user
+    let selectedUser = null;
 
     ws.onopen = () => {
         ws.send(username); // Send admin username to the backend
     };
 
     ws.onmessage = function(event) {
-        const messagesDiv = document.getElementById("messages");
-        const newMessage = document.createElement("p");
-        const messageData = event.data.split(":")[0]; // The message
-        const sender = event.data.split(":")[1]; // The sender username
+        const messageData = event.data.split(":")[0]; // The message part (not used for user list)
+        const sender = event.data.split(":")[1]; // The sender part (username)
 
-        // Set message styles based on who sent it
-        if (sender === "admin") {
-            newMessage.classList.add("admin-message"); // Admin message style
-        } else if (sender === username) {
-            newMessage.classList.add("user-message"); // Admin's own message style
-        } else {
-            newMessage.classList.add("user-message"); // User's message style
+        // If a user sends a message, display it in the chat
+        if (sender !== "admin") {
+            const messagesDiv = document.getElementById("messages");
+            const newMessage = document.createElement("p");
+
+            if (sender === "admin") {
+                newMessage.classList.add("admin-message");
+            } else {
+                newMessage.classList.add("user-message");
+            }
+
+            newMessage.textContent = `${sender}: ${messageData}`;
+            messagesDiv.appendChild(newMessage);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        newMessage.textContent = messageData;
-        messagesDiv.appendChild(newMessage);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom to show new messages
-
-        // Update user list
-        updateUserList(event.data);
+        // Update the user list with only usernames (not messages)
+        if (sender !== "admin") {
+            updateUserList(event.data);
+        }
     };
 
     function sendMessage() {
         const messageInput = document.getElementById("messageInput");
         const message = messageInput.value;
         if (message && selectedUser) {
-            // Automatically send message in format: message:username (selectedUser is automatically set)
+            // Send message in format: message:username
             ws.send(`${message}:${selectedUser}`);
-            messageInput.value = "";  // Clear input after sending
+            messageInput.value = "";
+
+            // Display admin's own message immediately, prepending username
+            const messagesDiv = document.getElementById("messages");
+            const newMessage = document.createElement("p");
+            newMessage.textContent = `${selectedUser}: ${message}`;
+            newMessage.classList.add("admin-message");
+            messagesDiv.appendChild(newMessage);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
     }
 
     function updateUserList(data) {
         const userListDiv = document.getElementById("userList");
-        const users = data.split(","); // Example, assume users are sent as comma-separated list
-        userListDiv.innerHTML = "";
+        // Split the incoming data by commas, then extract only the usernames
+        const users = data.split(","); // Assume users are sent as a comma-separated list
+        userListDiv.innerHTML = ""; // Clear the previous user list
         users.forEach(user => {
+            // Trim and ensure only the name is used
+            const username = user.split(":")[1]; // Take the part after ':'
+
             const li = document.createElement("li");
             const userLink = document.createElement("span");
-            userLink.textContent = user;
+            userLink.textContent = username; // Only display the cleaned-up username
             userLink.classList.add("user-link");
-            userLink.onclick = () => selectUser(user);
+            userLink.onclick = () => selectUser(username); // Update to use the clean name
             li.appendChild(userLink);
             userListDiv.appendChild(li);
         });
     }
 
     function selectUser(user) {
-        selectedUser = user;  // Store selected user when clicked
+        selectedUser = user;
         const messagesDiv = document.getElementById("messages");
-        messagesDiv.innerHTML = `Chat history with ${user}`; // Display chat history heading with selected user
+        messagesDiv.innerHTML = `Chat history with ${user}`; // Chat history with this user
     }
 
     document.getElementById("messageInput").addEventListener("keypress", function(event) {
@@ -191,6 +211,7 @@
         }
     });
 </script>
+
 
 
 </body>

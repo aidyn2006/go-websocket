@@ -129,14 +129,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			// Админ может отправить сообщение пользователю
 			parts := strings.SplitN(string(msg), ":", 2)
 			if len(parts) == 2 {
-				targetUsername := parts[0] // Имя пользователя
-				messageContent := parts[1] // Сообщение
+				targetUsername := parts[1]
+				messageContent := parts[0]
 				broadcastToUser([]byte(messageContent), targetUsername)
 			} else {
 				// Админ может отправить сообщение всем пользователям
 				broadcastToAll(msg, client)
 			}
 		}
+
 	}
 }
 
