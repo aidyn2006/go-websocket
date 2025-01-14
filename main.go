@@ -1,11 +1,11 @@
 package main
 
 import (
-	_ "fmt"
-	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 // WebSocket upgrader to upgrade HTTP connection to WebSocket connection
@@ -17,25 +17,40 @@ var upgrader = websocket.Upgrader{
 
 // Client struct represents a single WebSocket client
 type Client struct {
-	conn *websocket.Conn
-	send chan []byte
+	conn     *websocket.Conn
+	send     chan []byte
+	username string
 }
 
-// Global clients map and mutex to synchronize access to clients
+// Global clients map, admin client, and mutex to synchronize access to clients
 var clients = make(map[*Client]bool)
+var adminClient *Client
 var mu sync.Mutex
 
-// Broadcast message to all connected clients
-func broadcastMessage(message []byte, sender *Client) {
+// Broadcast message to the admin client only
+func broadcastToAdmin(message []byte, sender *Client) {
 	mu.Lock()
 	defer mu.Unlock()
-	// Iterate through all clients and send the message to each one
+	if adminClient != nil && adminClient != sender {
+		select {
+		case adminClient.send <- message:
+		default:
+			close(adminClient.send)
+			delete(clients, adminClient)
+			adminClient = nil
+		}
+	}
+}
+
+// Broadcast message to all clients except the sender
+func broadcastToAll(message []byte, sender *Client) {
+	mu.Lock()
+	defer mu.Unlock()
 	for client := range clients {
 		if client != sender {
 			select {
 			case client.send <- message:
 			default:
-				// If the channel is full, close the connection
 				close(client.send)
 				delete(clients, client)
 			}
@@ -45,15 +60,29 @@ func broadcastMessage(message []byte, sender *Client) {
 
 // WebSocket connection handler
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Upgrade HTTP connection to WebSocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading connection:", err)
 		return
 	}
-	client := &Client{conn: conn, send: make(chan []byte, 256)}
+	defer conn.Close()
 
-	// Add the client to the clients map
+	// Read the username sent by the client (first message)
+	_, usernameBytes, err := conn.ReadMessage()
+	if err != nil {
+		log.Println("Error reading username:", err)
+		return
+	}
+	username := string(usernameBytes)
+
+	client := &Client{conn: conn, send: make(chan []byte, 256), username: username}
+
+	// Check if this is the admin client
 	mu.Lock()
+	if username == "admin" {
+		adminClient = client
+	}
 	clients[client] = true
 	mu.Unlock()
 
@@ -83,8 +112,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// Broadcast the message to all other clients
-		broadcastMessage(msg, client)
+		// If the client is not admin, send the message only to the admin and the client
+		if client != adminClient {
+			broadcastToAdmin(msg, client)
+			select {
+			case client.send <- msg: // Send message back to the client
+			default:
+				close(client.send)
+				delete(clients, client)
+			}
+		} else {
+			// Admin can broadcast to all clients
+			broadcastToAll(msg, client)
+		}
 	}
 }
 
