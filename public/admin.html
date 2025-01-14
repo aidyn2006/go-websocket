@@ -60,12 +60,12 @@
 
         .user-message {
             background-color: #d1e7ff;
-            text-align: right;
+            text-align: left;
         }
 
         .admin-message {
             background-color: #f1f1f1;
-            text-align: left;
+            text-align: right;
             color: #555;
         }
 
@@ -98,6 +98,13 @@
             flex-direction: column;
         }
 
+        .user-link {
+            cursor: pointer;
+            color: #007bff;
+        }
+        .user-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -118,9 +125,10 @@
 <script>
     const username = "admin"; // Hardcoded for admin
     const ws = new WebSocket("ws://localhost:8080/ws");
+    let selectedUser = null;  // Keep track of the selected user
 
     ws.onopen = () => {
-        ws.send(username);
+        ws.send(username); // Send admin username to the backend
     };
 
     ws.onmessage = function(event) {
@@ -131,12 +139,16 @@
 
         // Set message styles based on who sent it
         if (sender === "admin") {
-            newMessage.classList.add("admin-message");
+            newMessage.classList.add("admin-message"); // Admin message style
+        } else if (sender === username) {
+            newMessage.classList.add("user-message"); // Admin's own message style
+        } else {
+            newMessage.classList.add("user-message"); // User's message style
         }
 
         newMessage.textContent = messageData;
         messagesDiv.appendChild(newMessage);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom to show new messages
 
         // Update user list
         updateUserList(event.data);
@@ -145,23 +157,32 @@
     function sendMessage() {
         const messageInput = document.getElementById("messageInput");
         const message = messageInput.value;
-        if (message) {
-            // Send message in format: message:username
-            ws.send(`${message}:${username}`);
-            messageInput.value = "";
+        if (message && selectedUser) {
+            // Automatically send message in format: message:username (selectedUser is automatically set)
+            ws.send(`${message}:${selectedUser}`);
+            messageInput.value = "";  // Clear input after sending
         }
     }
 
     function updateUserList(data) {
         const userListDiv = document.getElementById("userList");
-        // Update user list dynamically based on data
         const users = data.split(","); // Example, assume users are sent as comma-separated list
         userListDiv.innerHTML = "";
         users.forEach(user => {
             const li = document.createElement("li");
-            li.textContent = user;
+            const userLink = document.createElement("span");
+            userLink.textContent = user;
+            userLink.classList.add("user-link");
+            userLink.onclick = () => selectUser(user);
+            li.appendChild(userLink);
             userListDiv.appendChild(li);
         });
+    }
+
+    function selectUser(user) {
+        selectedUser = user;  // Store selected user when clicked
+        const messagesDiv = document.getElementById("messages");
+        messagesDiv.innerHTML = `Chat history with ${user}`; // Display chat history heading with selected user
     }
 
     document.getElementById("messageInput").addEventListener("keypress", function(event) {
@@ -170,6 +191,7 @@
         }
     });
 </script>
+
 
 </body>
 </html>

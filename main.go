@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -27,17 +28,19 @@ var clients = make(map[*Client]bool)
 var adminClient *Client
 var mu sync.Mutex
 
-// Broadcast message to the admin client only
-func broadcastToAdmin(message []byte, sender *Client) {
+// Broadcast message to a specific user
+func broadcastToUser(message []byte, targetUsername string) {
 	mu.Lock()
 	defer mu.Unlock()
-	if adminClient != nil && adminClient != sender {
-		select {
-		case adminClient.send <- message:
-		default:
-			close(adminClient.send)
-			delete(clients, adminClient)
-			adminClient = nil
+	for client := range clients {
+		if client.username == targetUsername {
+			select {
+			case client.send <- message:
+			default:
+				close(client.send)
+				delete(clients, client)
+			}
+			break
 		}
 	}
 }
@@ -112,18 +115,27 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// If the client is not admin, send the message only to the admin and the client
+		// If the client is not admin, send the message only to the admin
 		if client != adminClient {
-			broadcastToAdmin(msg, client)
+			// Сообщение отправляется администратору
+			broadcastToUser(msg, "admin")
 			select {
-			case client.send <- msg: // Send message back to the client
+			case client.send <- msg: // Отправка сообщения обратно клиенту
 			default:
 				close(client.send)
 				delete(clients, client)
 			}
 		} else {
-			// Admin can broadcast to all clients
-			broadcastToAll(msg, client)
+			// Админ может отправить сообщение пользователю
+			parts := strings.SplitN(string(msg), ":", 2)
+			if len(parts) == 2 {
+				targetUsername := parts[0] // Имя пользователя
+				messageContent := parts[1] // Сообщение
+				broadcastToUser([]byte(messageContent), targetUsername)
+			} else {
+				// Админ может отправить сообщение всем пользователям
+				broadcastToAll(msg, client)
+			}
 		}
 	}
 }
