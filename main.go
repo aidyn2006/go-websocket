@@ -28,10 +28,18 @@ var clients = make(map[*Client]bool)
 var adminClient *Client
 var mu sync.Mutex
 
+// Store messages for each user
+var userMessages = make(map[string][]string) // Store history of messages for each user
+
 // Broadcast message to a specific user
 func broadcastToUser(message []byte, targetUsername string) {
 	mu.Lock()
 	defer mu.Unlock()
+
+	// Store message in history
+	userMessages[targetUsername] = append(userMessages[targetUsername], string(message))
+
+	// Send the message to the target user
 	for client := range clients {
 		if client.username == targetUsername {
 			select {
@@ -49,6 +57,7 @@ func broadcastToUser(message []byte, targetUsername string) {
 func broadcastToAll(message []byte, sender *Client) {
 	mu.Lock()
 	defer mu.Unlock()
+
 	for client := range clients {
 		if client != sender {
 			select {
@@ -89,6 +98,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	clients[client] = true
 	mu.Unlock()
 
+	// Send the message history to the client if it exists
+	if messages, ok := userMessages[username]; ok {
+		for _, msg := range messages {
+			client.send <- []byte(msg) // Send the history
+		}
+	}
+
 	defer func() {
 		mu.Lock()
 		delete(clients, client)
@@ -117,27 +133,29 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		// If the client is not admin, send the message only to the admin
 		if client != adminClient {
-			// Сообщение отправляется администратору
+			// Store message in history
+			userMessages[client.username] = append(userMessages[client.username], string(msg))
+
+			// Send the message to the admin
 			broadcastToUser(msg, "admin")
 			select {
-			case client.send <- msg: // Отправка сообщения обратно клиенту
+			case client.send <- msg: // Send message back to the user
 			default:
 				close(client.send)
 				delete(clients, client)
 			}
 		} else {
-			// Админ может отправить сообщение пользователю
+			// Admin can send messages to specific users or broadcast
 			parts := strings.SplitN(string(msg), ":", 2)
 			if len(parts) == 2 {
 				targetUsername := parts[1]
 				messageContent := parts[0]
 				broadcastToUser([]byte(messageContent), targetUsername)
 			} else {
-				// Админ может отправить сообщение всем пользователям
+				// Admin can broadcast message to all users
 				broadcastToAll(msg, client)
 			}
 		}
-
 	}
 }
 

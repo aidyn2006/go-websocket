@@ -136,11 +136,13 @@
         ws.send(username); // Send admin username to the backend
     };
 
-    ws.onmessage = function(event) {
-        const messageData = event.data.split(":")[0]; // The message part (not used for user list)
-        const sender = event.data.split(":")[1]; // The sender part (username)
+    let userMessagesHistory = {}; // История сообщений для каждого пользователя
 
-        // If a user sends a message, display it in the chat
+    ws.onmessage = function(event) {
+        const messageData = event.data.split(":")[0]; // Сообщение
+        const sender = event.data.split(":")[1]; // Отправитель
+
+        // Если сообщение не от администратора
         if (sender !== "admin") {
             const messagesDiv = document.getElementById("messages");
             const newMessage = document.createElement("p");
@@ -153,14 +155,41 @@
 
             newMessage.textContent = `${sender}: ${messageData}`;
             messagesDiv.appendChild(newMessage);
+
+            // Сохранение истории сообщений для пользователя
+            if (!userMessagesHistory[sender]) {
+                userMessagesHistory[sender] = [];
+            }
+            userMessagesHistory[sender].push(`${sender}: ${messageData}`);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // Update the user list with only usernames (not messages)
+        // Обновление списка пользователей
         if (sender !== "admin") {
             updateUserList(event.data);
         }
     };
+
+    function selectUser(user) {
+        selectedUser = user;
+        const messagesDiv = document.getElementById("messages");
+        messagesDiv.innerHTML = `Chat history with ${user}`; // Чат с этим пользователем
+
+        // Показать историю сообщений для выбранного пользователя
+        if (userMessagesHistory[user]) {
+            userMessagesHistory[user].forEach(message => {
+                const newMessage = document.createElement("p");
+                newMessage.textContent = message;
+                if (user === "admin") {
+                    newMessage.classList.add("admin-message");
+                } else {
+                    newMessage.classList.add("user-message");
+                }
+                messagesDiv.appendChild(newMessage);
+            });
+        }
+    }
+
 
     function sendMessage() {
         const messageInput = document.getElementById("messageInput");
@@ -199,11 +228,11 @@
         });
     }
 
-    function selectUser(user) {
-        selectedUser = user;
-        const messagesDiv = document.getElementById("messages");
-        messagesDiv.innerHTML = `Chat history with ${user}`; // Chat history with this user
-    }
+    // function selectUser(user) {
+    //     selectedUser = user;
+    //     const messagesDiv = document.getElementById("messages");
+    //     messagesDiv.innerHTML = `Chat history with ${user}`; // Chat history with this user
+    // }
 
     document.getElementById("messageInput").addEventListener("keypress", function(event) {
         if (event.key === "Enter") {
@@ -211,8 +240,6 @@
         }
     });
 </script>
-
-
 
 </body>
 </html>
