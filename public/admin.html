@@ -117,7 +117,7 @@
 <div class="chat-container">
     <h1>Admin WebSocket Chat</h1>
     <div class="user-list">
-        <h3>Users Online:</h3>
+        <h3>Users:</h3>
         <ul id="userList"></ul>
     </div>
     <div class="message-wrapper">
@@ -239,6 +239,31 @@
             sendMessage();
         }
     });
+    // Function to fetch the list of users from the server
+    function fetchUserList() {
+        fetch("/get-users")
+            .then(response => response.json())
+            .then(users => {
+                const userListDiv = document.getElementById("userList");
+                userListDiv.innerHTML = ""; // Clear the previous list
+                users.forEach(user => {
+                    const li = document.createElement("li");
+                    const userLink = document.createElement("span");
+                    userLink.textContent = user; // Display username
+                    userLink.classList.add("user-link");
+                    userLink.onclick = () => selectUser(user); // Update to use the username
+                    li.appendChild(userLink);
+                    userListDiv.appendChild(li);
+                });
+            })
+            .catch(error => console.error("Error fetching user list:", error));
+    }
+
+    // Fetch the user list when the page loads
+    window.onload = function() {
+        fetchUserList();
+    };
+
 </script>
 
 </body>
