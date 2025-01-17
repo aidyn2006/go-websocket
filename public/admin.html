@@ -52,6 +52,14 @@
             box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.1);
         }
 
+        .user {
+            background-color: #f1f1f1;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
         p {
             margin: 5px 0;
             padding: 8px;
@@ -116,10 +124,7 @@
 
 <div class="chat-container">
     <h1>Admin WebSocket Chat</h1>
-    <div class="user-list">
-        <h3>Users:</h3>
-        <ul id="userList"></ul> <!-- Updated to a simple list -->
-    </div>
+    <div class="user-list" id="userList"></div> <!-- Updated to use div blocks for each user -->
     <div class="message-wrapper">
         <div id="messages"></div>
         <input type="text" id="messageInput" placeholder="Type your message" />
@@ -215,16 +220,19 @@
         users.forEach(user => {
             const username = user.split(":")[1]; // Take the part after ':'
 
-            const li = document.createElement("li"); // Use a list item for user
+            const userDiv = document.createElement("div"); // Create div for each user
+            userDiv.classList.add("user");
+
             const userLink = document.createElement("span");
             userLink.textContent = username;
             userLink.classList.add("user-link");
             userLink.onclick = () => selectUser(username); // Use the username to select
 
-            li.appendChild(userLink);
-            userListDiv.appendChild(li);
+            userDiv.appendChild(userLink);
+            userListDiv.appendChild(userDiv);
         });
     }
+
     function fetchUserList() {
         fetch("/get-users")
             .then(response => response.json())
@@ -232,13 +240,16 @@
                 const userListDiv = document.getElementById("userList");
                 userListDiv.innerHTML = ""; // Clear the previous list
                 users.forEach(user => {
-                    const li = document.createElement("li");
+                    const userDiv = document.createElement("div"); // Create div for each user
+                    userDiv.classList.add("user");
+
                     const userLink = document.createElement("span");
                     userLink.textContent = user; // Display username
                     userLink.classList.add("user-link");
                     userLink.onclick = () => selectUser(user); // Update to use the username
-                    li.appendChild(userLink);
-                    userListDiv.appendChild(li);
+
+                    userDiv.appendChild(userLink);
+                    userListDiv.appendChild(userDiv);
                 });
             })
             .catch(error => console.error("Error fetching user list:", error));
