@@ -118,7 +118,7 @@
     <h1>Admin WebSocket Chat</h1>
     <div class="user-list">
         <h3>Users:</h3>
-        <ul id="userList"></ul>
+        <ul id="userList"></ul> <!-- Updated to a simple list -->
     </div>
     <div class="message-wrapper">
         <div id="messages"></div>
@@ -136,13 +136,12 @@
         ws.send(username); // Send admin username to the backend
     };
 
-    let userMessagesHistory = {}; // История сообщений для каждого пользователя
+    let userMessagesHistory = {}; // Store user messages history
 
     ws.onmessage = function(event) {
-        const messageData = event.data.split(":")[0]; // Сообщение
-        const sender = event.data.split(":")[1]; // Отправитель
+        const messageData = event.data.split(":")[0]; // Message
+        const sender = event.data.split(":")[1]; // Sender
 
-        // Если сообщение не от администратора
         if (sender !== "admin") {
             const messagesDiv = document.getElementById("messages");
             const newMessage = document.createElement("p");
@@ -156,7 +155,7 @@
             newMessage.textContent = `${sender}: ${messageData}`;
             messagesDiv.appendChild(newMessage);
 
-            // Сохранение истории сообщений для пользователя
+            // Save message history for each user
             if (!userMessagesHistory[sender]) {
                 userMessagesHistory[sender] = [];
             }
@@ -164,7 +163,7 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // Обновление списка пользователей
+        // Update the user list
         if (sender !== "admin") {
             updateUserList(event.data);
         }
@@ -173,9 +172,9 @@
     function selectUser(user) {
         selectedUser = user;
         const messagesDiv = document.getElementById("messages");
-        messagesDiv.innerHTML = `Chat history with ${user}`; // Чат с этим пользователем
+        messagesDiv.innerHTML = `Chat history with ${user}`;
 
-        // Показать историю сообщений для выбранного пользователя
+        // Display chat history for the selected user
         if (userMessagesHistory[user]) {
             userMessagesHistory[user].forEach(message => {
                 const newMessage = document.createElement("p");
@@ -190,7 +189,6 @@
         }
     }
 
-
     function sendMessage() {
         const messageInput = document.getElementById("messageInput");
         const message = messageInput.value;
@@ -199,7 +197,7 @@
             ws.send(`${message}:${selectedUser}`);
             messageInput.value = "";
 
-            // Display admin's own message immediately, prepending username
+            // Display admin's own message immediately
             const messagesDiv = document.getElementById("messages");
             const newMessage = document.createElement("p");
             newMessage.textContent = `${selectedUser}: ${message}`;
@@ -211,35 +209,22 @@
 
     function updateUserList(data) {
         const userListDiv = document.getElementById("userList");
-        // Split the incoming data by commas, then extract only the usernames
         const users = data.split(","); // Assume users are sent as a comma-separated list
         userListDiv.innerHTML = ""; // Clear the previous user list
+
         users.forEach(user => {
-            // Trim and ensure only the name is used
             const username = user.split(":")[1]; // Take the part after ':'
 
-            const li = document.createElement("li");
+            const li = document.createElement("li"); // Use a list item for user
             const userLink = document.createElement("span");
-            userLink.textContent = username; // Only display the cleaned-up username
+            userLink.textContent = username;
             userLink.classList.add("user-link");
-            userLink.onclick = () => selectUser(username); // Update to use the clean name
+            userLink.onclick = () => selectUser(username); // Use the username to select
+
             li.appendChild(userLink);
             userListDiv.appendChild(li);
         });
     }
-
-    // function selectUser(user) {
-    //     selectedUser = user;
-    //     const messagesDiv = document.getElementById("messages");
-    //     messagesDiv.innerHTML = `Chat history with ${user}`; // Chat history with this user
-    // }
-
-    document.getElementById("messageInput").addEventListener("keypress", function(event) {
-        if (event.key === "Enter") {
-            sendMessage();
-        }
-    });
-    // Function to fetch the list of users from the server
     function fetchUserList() {
         fetch("/get-users")
             .then(response => response.json())
@@ -263,7 +248,6 @@
     window.onload = function() {
         fetchUserList();
     };
-
 </script>
 
 </body>

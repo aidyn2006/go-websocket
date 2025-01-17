@@ -432,6 +432,67 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Delete a user and all associated data (messages, admin_clients, etc.)
+func deleteUser(w http.ResponseWriter, r *http.Request) {
+	// Get the username from the URL path
+	username := strings.TrimPrefix(r.URL.Path, "/delete-user/")
+
+	// Check if the username is "admin" (admin cannot be deleted)
+	if username == "admin" {
+		http.Error(w, "Cannot delete the admin user", http.StatusForbidden)
+		return
+	}
+
+	// Get the user ID from the database
+	var userID int
+	err := db.QueryRow("SELECT id FROM users WHERE username = $1", username).Scan(&userID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		log.Println("Error getting user ID:", err)
+		return
+	}
+
+	// Delete messages related to this user
+	_, err = db.Exec("DELETE FROM messages WHERE sender_id = $1 OR consumer_id = $1", userID)
+	if err != nil {
+		http.Error(w, "Failed to delete messages", http.StatusInternalServerError)
+		log.Println("Error deleting messages:", err)
+		return
+	}
+
+	// Remove the user from the admin_clients table (if they are listed there)
+	_, err = db.Exec("DELETE FROM admin_clients WHERE client_id = $1", userID)
+	if err != nil {
+		http.Error(w, "Failed to remove from admin_clients", http.StatusInternalServerError)
+		log.Println("Error removing from admin_clients:", err)
+		return
+	}
+
+	// Delete the user from the users table
+	_, err = db.Exec("DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		http.Error(w, "Failed to delete user", http.StatusInternalServerError)
+		log.Println("Error deleting user:", err)
+		return
+	}
+
+	// Send a success response
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("User %s deleted successfully", username)))
+
+	// Optionally, broadcast that the user has been deleted to all clients
+	mu.Lock()
+	for client := range clients {
+		if client.username == username {
+			// Close the client's connection
+			close(client.send)
+			delete(clients, client)
+			break
+		}
+	}
+	mu.Unlock()
+}
+
 func main() {
 	// Initialize database
 	initDB()
@@ -445,6 +506,9 @@ func main() {
 	// WebSocket route
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/get-users", getUserList)
+
+	// Add new route for deleting a user
+	http.HandleFunc("/delete-user/", deleteUser) // Dynamic route for deleting user by username
 
 	// Start the server
 	log.Println("Starting WebSocket server on http://localhost:8080")
